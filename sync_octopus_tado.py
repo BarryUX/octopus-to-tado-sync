@@ -59,14 +59,38 @@ async def browser_login(url, username, password):
         await page.click('button.c-btn--primary:has-text("Sign in")')
 
         # Optionally take a screenshot
-        await page.screenshot(path="screenshot.png")
+        # await page.screenshot(path="screenshot.png")
 
-        await page.wait_for_selector(
-            ".text-center.message-screen.b-bubble-screen__spaced", timeout=10000
-        )
+        try:
+            # Check for cookie banner and accept if present (this is a guess at the selector,
+            # but standard practice to attempt to clear overlays)
+            try:
+                cookie_button = await page.wait_for_selector(
+                    'button[id*="cookie"], button[class*="cookie"], #onetrust-accept-btn-handler',
+                    timeout=2000
+                )
+                if cookie_button:
+                    await cookie_button.click()
+            except Exception:
+                pass # No cookie banner found or needed
 
-        # Take a screenshot (optional)
-        await page.screenshot(path="after-message.png")
+            await page.wait_for_selector(
+                ".text-center.message-screen.b-bubble-screen__spaced", timeout=10000
+            )
+            print("Login successful.")
+        except Exception:
+            print("Success message not found. Checking for errors...")
+            # Capture error state for debugging in CI logs (base64 or just logs)
+            content = await page.content()
+            if "alert-danger" in content or "Invalid email or password" in content:
+                print("Login failed: Invalid credentials or error message displayed.")
+            else:
+                print("Login failed or success message selector changed.")
+                print(f"Page title: {await page.title()}")
+                # Dump part of the body to help debug if it happens again
+                body_text = await page.inner_text("body")
+                print(f"Page content snippet: {body_text[:500]}")
+
         await browser.close()
 
 
